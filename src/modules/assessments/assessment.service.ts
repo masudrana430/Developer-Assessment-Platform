@@ -1,0 +1,397 @@
+import {
+  AssessmentStatus,
+  type Difficulty,
+  Prisma,
+  QuestionType,
+  Role
+} from "@prisma/client";
+import { prisma } from "../../lib/prisma";
+import { AppError } from "../../utils/AppError";
+import { writeAuditLog } from "../../utils/audit";
+import { clearAssessmentCache, getCache, setCache } from "../../utils/cache";
+import { buildMeta, getPagination } from "../../utils/pagination";
+
+type Actor = { id: string; role: Role };
+
+const assessmentPublicSelect = {
+  id: true,
+  title: true,
+  slug: true,
+  description: true,
+  difficulty: true,
+  durationMinutes: true,
+  passingScore: true,
+  feeCents: true,
+  currency: true,
+  status: true,
+  createdAt: true,
+  creator: {
+    select: {
+      id: true,
+      name: true
+    }
+  },
+  _count: {
+    select: {
+      questions: {
+        where: { deletedAt: null }
+      }
+    }
+  }
+} as const;
+
+const assertManager = async (assessmentId: string, actor: Actor) => {
+  const assessment = await prisma.assessment.findFirst({
+    where: { id: assessmentId, deletedAt: null }
+  });
+  if (!assessment) throw new AppError(404, "Assessment not found");
+  if (actor.role !== Role.ADMIN && assessment.createdById !== actor.id) {
+    throw new AppError(403, "You can only manage assessments you created");
+  }
+  return assessment;
+};
+
+export const create = async (
+  actor: Actor,
+  payload: {
+    title: string;
+    slug: string;
+    description: string;
+    difficulty: Difficulty;
+    durationMinutes: number;
+    passingScore: number;
+    feeCents: number;
+    currency: string;
+  }
+) => {
+  const result = await prisma.assessment.create({
+    data: { ...payload, createdById: actor.id },
+    select: assessmentPublicSelect
+  });
+  await clearAssessmentCache();
+  await writeAuditLog(actor.id, "ASSESSMENT_CREATE", "Assessment", result.id);
+  return result;
+};
+
+export const list = async (query: {
+  page: number;
+  limit: number;
+  search?: string;
+  difficulty?: Difficulty;
+  status?: AssessmentStatus;
+  sortBy: "createdAt" | "title" | "feeCents" | "durationMinutes";
+  sortOrder: "asc" | "desc";
+}) => {
+  const { page, limit, skip } = getPagination(query.page, query.limit);
+  const status = AssessmentStatus.PUBLISHED;
+  const sortBy = query.sortBy ?? "createdAt";
+  const sortOrder = query.sortOrder ?? "desc";
+
+  const cacheKey = `assessments:${JSON.stringify({ ...query, status, sortBy, sortOrder, page, limit })}`;
+  const cached = await getCache<{ data: unknown[]; meta: ReturnType<typeof buildMeta> }>(
+    cacheKey
+  );
+  if (cached) return cached;
+
+  const where: Prisma.AssessmentWhereInput = {
+    deletedAt: null,
+    status,
+    ...(query.difficulty ? { difficulty: query.difficulty } : {}),
+    ...(query.search
+      ? {
+          OR: [
+            { title: { contains: query.search, mode: "insensitive" } },
+            { description: { contains: query.search, mode: "insensitive" } }
+          ]
+        }
+      : {})
+  };
+
+  const [data, total] = await prisma.$transaction([
+    prisma.assessment.findMany({
+      where,
+      select: assessmentPublicSelect,
+      skip,
+      take: limit,
+      orderBy: { [sortBy]: sortOrder }
+    }),
+    prisma.assessment.count({ where })
+  ]);
+
+  const result = { data, meta: buildMeta(page, limit, total) };
+  await setCache(cacheKey, result, 60);
+  return result;
+};
+
+export const getById = async (id: string) => {
+  const assessment = await prisma.assessment.findFirst({
+    where: {
+      id,
+      deletedAt: null,
+      status: AssessmentStatus.PUBLISHED
+    },
+    select: {
+      ...assessmentPublicSelect,
+      questions: {
+        where: { deletedAt: null },
+        orderBy: { order: "asc" },
+        select: {
+          id: true,
+          prompt: true,
+          type: true,
+          options: true,
+          points: true,
+          order: true
+        }
+      }
+    }
+  });
+  if (!assessment) throw new AppError(404, "Published assessment not found");
+  return assessment;
+};
+
+
+export const listManaged = async (
+  actor: Actor,
+  query: {
+    page: number;
+    limit: number;
+    search?: string;
+    status?: AssessmentStatus;
+  }
+) => {
+  const { page, limit, skip } = getPagination(query.page, query.limit);
+  const where: Prisma.AssessmentWhereInput = {
+    deletedAt: null,
+    ...(actor.role === Role.REVIEWER ? { createdById: actor.id } : {}),
+    ...(query.status ? { status: query.status } : {}),
+    ...(query.search
+      ? {
+          OR: [
+            { title: { contains: query.search, mode: "insensitive" } },
+            { slug: { contains: query.search, mode: "insensitive" } }
+          ]
+        }
+      : {})
+  };
+
+  const [data, total] = await prisma.$transaction([
+    prisma.assessment.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { updatedAt: "desc" },
+      select: assessmentPublicSelect
+    }),
+    prisma.assessment.count({ where })
+  ]);
+
+  return { data, meta: buildMeta(page, limit, total) };
+};
+
+export const getManaged = async (id: string, actor: Actor) => {
+  await assertManager(id, actor);
+  const assessment = await prisma.assessment.findUnique({
+    where: { id },
+    include: {
+      questions: {
+        where: { deletedAt: null },
+        orderBy: { order: "asc" }
+      },
+      _count: {
+        select: { attempts: true }
+      }
+    }
+  });
+  if (!assessment) throw new AppError(404, "Assessment not found");
+  return assessment;
+};
+
+export const update = async (
+  id: string,
+  actor: Actor,
+  payload: Record<string, unknown>
+) => {
+  const current = await assertManager(id, actor);
+  if (current.status === AssessmentStatus.ARCHIVED) {
+    throw new AppError(409, "Archived assessments cannot be edited");
+  }
+
+  const result = await prisma.assessment.update({
+    where: { id },
+    data: payload as Prisma.AssessmentUpdateInput,
+    select: assessmentPublicSelect
+  });
+  await clearAssessmentCache();
+  await writeAuditLog(actor.id, "ASSESSMENT_UPDATE", "Assessment", id);
+  return result;
+};
+
+export const publish = async (id: string, actor: Actor) => {
+  const current = await assertManager(id, actor);
+  if (current.status === AssessmentStatus.ARCHIVED) {
+    throw new AppError(409, "Archived assessments cannot be published");
+  }
+
+  const activeQuestions = await prisma.question.count({
+    where: { assessmentId: id, deletedAt: null }
+  });
+  if (activeQuestions === 0) {
+    throw new AppError(409, "Add at least one question before publishing");
+  }
+
+  const totalPoints = await prisma.question.aggregate({
+    where: { assessmentId: id, deletedAt: null },
+    _sum: { points: true }
+  });
+  if (!totalPoints._sum.points) {
+    throw new AppError(409, "Assessment must have positive total points");
+  }
+
+  const result = await prisma.assessment.update({
+    where: { id },
+    data: { status: AssessmentStatus.PUBLISHED },
+    select: assessmentPublicSelect
+  });
+
+  await clearAssessmentCache();
+  await writeAuditLog(actor.id, "ASSESSMENT_PUBLISH", "Assessment", id);
+  return result;
+};
+
+export const softDelete = async (id: string, actor: Actor) => {
+  await assertManager(id, actor);
+
+  const activeAttempts = await prisma.attempt.count({
+    where: {
+      assessmentId: id,
+      status: {
+        in: ["IN_PROGRESS", "SUBMITTED", "UNDER_REVIEW"]
+      }
+    }
+  });
+  if (activeAttempts > 0) {
+    throw new AppError(409, "Assessment has active attempts and cannot be deleted");
+  }
+
+  await prisma.assessment.update({
+    where: { id },
+    data: {
+      deletedAt: new Date(),
+      status: AssessmentStatus.ARCHIVED
+    }
+  });
+
+  await clearAssessmentCache();
+  await writeAuditLog(actor.id, "ASSESSMENT_SOFT_DELETE", "Assessment", id);
+  return null;
+};
+
+export const addQuestion = async (
+  assessmentId: string,
+  actor: Actor,
+  payload: {
+    prompt: string;
+    type: QuestionType;
+    options?: string[];
+    correctAnswer?: unknown;
+    points: number;
+    order: number;
+  }
+) => {
+  const assessment = await assertManager(assessmentId, actor);
+  if (assessment.status === AssessmentStatus.ARCHIVED) {
+    throw new AppError(409, "Archived assessments cannot be edited");
+  }
+
+  const data: Prisma.QuestionUncheckedCreateInput = {
+    assessmentId,
+    prompt: payload.prompt,
+    type: payload.type,
+    points: payload.points,
+    order: payload.order,
+    ...(payload.options !== undefined
+      ? { options: payload.options as Prisma.InputJsonValue }
+      : {}),
+    ...(payload.correctAnswer !== undefined
+      ? { correctAnswer: payload.correctAnswer as Prisma.InputJsonValue }
+      : {})
+  };
+
+  const question = await prisma.question.create({ data });
+  await clearAssessmentCache();
+  await writeAuditLog(actor.id, "QUESTION_CREATE", "Question", question.id, {
+    assessmentId
+  });
+  return question;
+};
+
+export const updateQuestion = async (
+  assessmentId: string,
+  questionId: string,
+  actor: Actor,
+  payload: Record<string, unknown>
+) => {
+  const assessment = await assertManager(assessmentId, actor);
+  if (assessment.status === AssessmentStatus.ARCHIVED) {
+    throw new AppError(409, "Archived assessments cannot be edited");
+  }
+
+  const question = await prisma.question.findFirst({
+    where: { id: questionId, assessmentId, deletedAt: null }
+  });
+  if (!question) throw new AppError(404, "Question not found");
+
+  const data: Prisma.QuestionUpdateInput = {};
+  for (const key of ["prompt", "type", "points", "order"] as const) {
+    if (payload[key] !== undefined) {
+      (data as Record<string, unknown>)[key] = payload[key];
+    }
+  }
+  if ("options" in payload) {
+    data.options =
+      payload.options === null
+        ? Prisma.JsonNull
+        : (payload.options as Prisma.InputJsonValue);
+  }
+  if ("correctAnswer" in payload) {
+    data.correctAnswer =
+      payload.correctAnswer === null
+        ? Prisma.JsonNull
+        : (payload.correctAnswer as Prisma.InputJsonValue);
+  }
+
+  const result = await prisma.question.update({
+    where: { id: questionId },
+    data
+  });
+
+  await clearAssessmentCache();
+  await writeAuditLog(actor.id, "QUESTION_UPDATE", "Question", questionId, {
+    assessmentId
+  });
+  return result;
+};
+
+export const deleteQuestion = async (
+  assessmentId: string,
+  questionId: string,
+  actor: Actor
+) => {
+  await assertManager(assessmentId, actor);
+  const question = await prisma.question.findFirst({
+    where: { id: questionId, assessmentId, deletedAt: null }
+  });
+  if (!question) throw new AppError(404, "Question not found");
+
+  await prisma.question.update({
+    where: { id: questionId },
+    data: { deletedAt: new Date() }
+  });
+
+  await clearAssessmentCache();
+  await writeAuditLog(actor.id, "QUESTION_SOFT_DELETE", "Question", questionId, {
+    assessmentId
+  });
+  return null;
+};
