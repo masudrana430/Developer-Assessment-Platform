@@ -13,8 +13,7 @@
     "prisma:studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
     "lint": "biome check src prisma",
-    "format": "biome format --write src prisma",
-    "postinstall": "prisma generate"
+    "format": "biome format --write src prisma"
   },
   "engines": {
     "node": ">=20"

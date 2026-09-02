@@ -10,12 +10,14 @@ const seedUser = async (
   role: Role
 ) => {
   const existing = await prisma.user.findUnique({ where: { email } });
+  const hashed = await bcrypt.hash(password, config.BCRYPT_SALT_ROUNDS);
 
   if (existing) {
     await prisma.user.update({
       where: { id: existing.id },
       data: {
         name,
+        password: hashed,
         role,
         status: "ACTIVE",
         deletedAt: null
@@ -24,7 +26,6 @@ const seedUser = async (
     return;
   }
 
-  const hashed = await bcrypt.hash(password, config.BCRYPT_SALT_ROUNDS);
   await prisma.user.create({
     data: {
       name,
