@@ -4,7 +4,6 @@ import {
   Prisma,
   QuestionType
 } from "@prisma/client";
-import { addMinutes } from "date-fns";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/AppError";
 import { writeAuditLog } from "../../utils/audit";
@@ -113,7 +112,7 @@ export const start = async (candidateId: string, attemptId: string) => {
       throw new AppError(409, "Attempt is not ready to start");
     }
 
-    const expiresAt = addMinutes(now, attempt.assessment.durationMinutes);
+    const expiresAt = new Date(now.getTime() + attempt.assessment.durationMinutes * 60_000);
     const updated = await tx.attempt.updateMany({
       where: {
         id: attemptId,
@@ -341,7 +340,7 @@ export const listMine = async (
 };
 
 export const getCandidateAttempt = async (candidateId: string, attemptId: string) => {
-  const attempt = await prisma.attempt.findFirst({
+  const summary = await prisma.attempt.findFirst({
     where: {
       id: attemptId,
       candidateId,
@@ -363,6 +362,59 @@ export const getCandidateAttempt = async (candidateId: string, attemptId: string
           id: true,
           title: true,
           passingScore: true,
+          durationMinutes: true,
+          feeCents: true,
+          currency: true
+        }
+      },
+      payment: {
+        select: {
+          id: true,
+          status: true,
+          amountCents: true,
+          currency: true
+        }
+      },
+      review: {
+        select: {
+          feedback: true,
+          decision: true,
+          totalScore: true,
+          createdAt: true
+        }
+      }
+    }
+  });
+
+  if (!summary) throw new AppError(404, "Attempt not found");
+
+  if (!summary.startedAt) {
+    return summary;
+  }
+
+  return prisma.attempt.findFirstOrThrow({
+    where: {
+      id: attemptId,
+      candidateId,
+      deletedAt: null
+    },
+    select: {
+      id: true,
+      attemptNo: true,
+      status: true,
+      startedAt: true,
+      expiresAt: true,
+      submittedAt: true,
+      evaluatedAt: true,
+      autoScore: true,
+      finalScore: true,
+      passed: true,
+      assessment: {
+        select: {
+          id: true,
+          title: true,
+          passingScore: true,
+          durationMinutes: true,
           questions: {
             where: { deletedAt: null },
             orderBy: { order: "asc" },
@@ -397,7 +449,4 @@ export const getCandidateAttempt = async (candidateId: string, attemptId: string
       }
     }
   });
-
-  if (!attempt) throw new AppError(404, "Attempt not found");
-  return attempt;
 };

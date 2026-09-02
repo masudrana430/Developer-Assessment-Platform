@@ -171,6 +171,13 @@ export const evaluate = async (
       const submittedScores = new Map(
         payload.answers.map((item) => [item.answerId, item])
       );
+      const attemptAnswerIds = new Set(attempt.answers.map((answer) => answer.id));
+      const unknownAnswer = payload.answers.find(
+        (item) => !attemptAnswerIds.has(item.answerId)
+      );
+      if (unknownAnswer) {
+        throw new AppError(400, "One or more graded answers do not belong to this attempt");
+      }
 
       for (const answer of attempt.answers) {
         if (answer.question.type === QuestionType.MCQ) continue;

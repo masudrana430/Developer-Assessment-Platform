@@ -15,7 +15,9 @@ export const answerSchema = z.object({
     questionId: z.string().uuid()
   }),
   body: z.object({
-    response: z.unknown()
+    response: z
+      .unknown()
+      .refine((value) => value !== null && value !== undefined, "Response is required")
   })
 });
 

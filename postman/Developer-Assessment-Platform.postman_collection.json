@@ -416,7 +416,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Backend TypeScript Assessment\",\n  \"slug\": \"backend-typescript-assessment\",\n  \"description\": \"A practical assessment covering TypeScript and backend engineering fundamentals.\",\n  \"difficulty\": \"MID\",\n  \"durationMinutes\": 60,\n  \"passingScore\": 70,\n  \"feeCents\": 1000,\n  \"currency\": \"usd\"\n}",
+              "raw": "{\n  \"title\": \"Backend TypeScript Assessment\",\n  \"slug\": \"{{assessmentSlug}}\",\n  \"description\": \"A practical assessment covering TypeScript and backend engineering fundamentals.\",\n  \"difficulty\": \"MID\",\n  \"durationMinutes\": 60,\n  \"passingScore\": 70,\n  \"feeCents\": 1000,\n  \"currency\": \"usd\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -426,6 +426,15 @@
           },
           "response": [],
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"assessmentSlug\", `backend-typescript-assessment-${Date.now()}`);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -839,6 +848,116 @@
       ]
     },
     {
+      "name": "4. Candidate Enrollment",
+      "item": [
+        {
+          "name": "Enroll in Assessment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/attempts/enroll/{{assessmentId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{candidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Success response\", function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set(\"attemptId\", json.data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List My Attempts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/attempts/my?page=1&limit=10",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{candidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Success response\", function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Attempt",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/attempts/{{attemptId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{candidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Success response\", function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "5. Stripe Payments",
       "item": [
         {
@@ -1047,113 +1166,8 @@
       ]
     },
     {
-      "name": "4. Candidate Attempt Workflow",
+      "name": "6. Candidate Execution",
       "item": [
-        {
-          "name": "Enroll in Assessment",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": "{{baseUrl}}/attempts/enroll/{{assessmentId}}",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{candidateAccessToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Success response\", function () {",
-                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-                  "  const json = pm.response.json();",
-                  "  pm.expect(json.success).to.eql(true);",
-                  "});",
-                  "",
-                  "const json = pm.response.json();",
-                  "pm.collectionVariables.set(\"attemptId\", json.data.id);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "List My Attempts",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/attempts/my?page=1&limit=10",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{candidateAccessToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Success response\", function () {",
-                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-                  "  const json = pm.response.json();",
-                  "  pm.expect(json.success).to.eql(true);",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get Attempt",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/attempts/{{attemptId}}",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{candidateAccessToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Success response\", function () {",
-                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-                  "  const json = pm.response.json();",
-                  "  pm.expect(json.success).to.eql(true);",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
         {
           "name": "Start Attempt",
           "request": {
@@ -1324,7 +1338,7 @@
       ]
     },
     {
-      "name": "6. Reviewer Evaluation Workflow",
+      "name": "7. Reviewer Evaluation Workflow",
       "item": [
         {
           "name": "Review Queue",
@@ -1525,7 +1539,7 @@
       ]
     },
     {
-      "name": "7. Admin Operations",
+      "name": "8. Admin Operations",
       "item": [
         {
           "name": "List Users",
@@ -1805,6 +1819,10 @@
     },
     {
       "key": "targetUserId",
+      "value": ""
+    },
+    {
+      "key": "assessmentSlug",
       "value": ""
     }
   ]

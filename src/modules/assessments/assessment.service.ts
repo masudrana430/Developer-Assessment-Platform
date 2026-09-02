@@ -51,6 +51,18 @@ const assertManager = async (assessmentId: string, actor: Actor) => {
   return assessment;
 };
 
+const assertNoAttempts = async (assessmentId: string) => {
+  const count = await prisma.attempt.count({
+    where: { assessmentId, deletedAt: null }
+  });
+  if (count > 0) {
+    throw new AppError(
+      409,
+      "Assessment content is locked because candidate attempts already exist"
+    );
+  }
+};
+
 export const create = async (
   actor: Actor,
   payload: {
@@ -134,21 +146,7 @@ export const getById = async (id: string) => {
       deletedAt: null,
       status: AssessmentStatus.PUBLISHED
     },
-    select: {
-      ...assessmentPublicSelect,
-      questions: {
-        where: { deletedAt: null },
-        orderBy: { order: "asc" },
-        select: {
-          id: true,
-          prompt: true,
-          type: true,
-          options: true,
-          points: true,
-          order: true
-        }
-      }
-    }
+    select: assessmentPublicSelect
   });
   if (!assessment) throw new AppError(404, "Published assessment not found");
   return assessment;
@@ -217,6 +215,7 @@ export const update = async (
   payload: Record<string, unknown>
 ) => {
   const current = await assertManager(id, actor);
+  await assertNoAttempts(id);
   if (current.status === AssessmentStatus.ARCHIVED) {
     throw new AppError(409, "Archived assessments cannot be edited");
   }
@@ -316,6 +315,7 @@ export const addQuestion = async (
   }
 ) => {
   const assessment = await assertManager(assessmentId, actor);
+  await assertNoAttempts(assessmentId);
   if (assessment.status === AssessmentStatus.ARCHIVED) {
     throw new AppError(409, "Archived assessments cannot be edited");
   }
@@ -349,6 +349,7 @@ export const updateQuestion = async (
   payload: Record<string, unknown>
 ) => {
   const assessment = await assertManager(assessmentId, actor);
+  await assertNoAttempts(assessmentId);
   if (assessment.status === AssessmentStatus.ARCHIVED) {
     throw new AppError(409, "Archived assessments cannot be edited");
   }
@@ -358,6 +359,26 @@ export const updateQuestion = async (
   });
   if (!question) throw new AppError(404, "Question not found");
 
+  const nextType = (payload.type as QuestionType | undefined) ?? question.type;
+  const nextOptions =
+    payload.options !== undefined ? payload.options : question.options;
+  const nextCorrectAnswer =
+    payload.correctAnswer !== undefined
+      ? payload.correctAnswer
+      : question.correctAnswer;
+
+  if (nextType === QuestionType.MCQ) {
+    if (!Array.isArray(nextOptions) || nextOptions.length < 2) {
+      throw new AppError(400, "MCQ questions require at least two options");
+    }
+    if (
+      typeof nextCorrectAnswer !== "string" ||
+      !nextOptions.includes(nextCorrectAnswer)
+    ) {
+      throw new AppError(400, "MCQ correctAnswer must match one of the options");
+    }
+  }
+
   const data: Prisma.QuestionUpdateInput = {};
   if (payload.prompt !== undefined) data.prompt = payload.prompt as string;
   if (payload.type !== undefined) data.type = payload.type as QuestionType;
@@ -366,13 +387,13 @@ export const updateQuestion = async (
   if ("options" in payload) {
     data.options =
       payload.options === null
-        ? Prisma.JsonNull
+        ? Prisma.DbNull
         : (payload.options as Prisma.InputJsonValue);
   }
   if ("correctAnswer" in payload) {
     data.correctAnswer =
       payload.correctAnswer === null
-        ? Prisma.JsonNull
+        ? Prisma.DbNull
         : (payload.correctAnswer as Prisma.InputJsonValue);
   }
 
@@ -394,6 +415,7 @@ export const deleteQuestion = async (
   actor: Actor
 ) => {
   await assertManager(assessmentId, actor);
+  await assertNoAttempts(assessmentId);
   const question = await prisma.question.findFirst({
     where: { id: questionId, assessmentId, deletedAt: null }
   });

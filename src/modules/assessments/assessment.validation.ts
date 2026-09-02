@@ -47,7 +47,6 @@ export const listAssessmentSchema = z.object({
     limit: z.coerce.number().int().min(1).max(100).default(10),
     search: z.string().trim().max(100).optional(),
     difficulty: z.nativeEnum(Difficulty).optional(),
-    status: z.nativeEnum(AssessmentStatus).optional(),
     sortBy: z.enum(["createdAt", "title", "feeCents", "durationMinutes"]).default("createdAt"),
     sortOrder: z.enum(["asc", "desc"]).default("desc")
   })
@@ -58,7 +57,7 @@ const questionBody = z
     prompt: z.string().trim().min(3).max(10000),
     type: z.nativeEnum(QuestionType),
     options: z.array(z.string().min(1)).min(2).max(10).optional(),
-    correctAnswer: z.unknown().optional(),
+    correctAnswer: z.string().min(1).optional(),
     points: z.number().int().min(1).max(100),
     order: z.number().int().min(1).max(1000)
   })
@@ -76,6 +75,12 @@ const questionBody = z
           code: "custom",
           path: ["correctAnswer"],
           message: "MCQ questions require a correctAnswer"
+        });
+      } else if (data.options && !data.options.includes(data.correctAnswer)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["correctAnswer"],
+          message: "correctAnswer must match one of the MCQ options"
         });
       }
     }
