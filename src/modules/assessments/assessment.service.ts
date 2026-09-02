@@ -107,13 +107,17 @@ export const list = async (query: {
       : {})
   };
 
+  const orderBy = {
+    [sortBy]: sortOrder
+  } as Prisma.AssessmentOrderByWithRelationInput;
+
   const [data, total] = await prisma.$transaction([
     prisma.assessment.findMany({
       where,
       select: assessmentPublicSelect,
       skip,
       take: limit,
-      orderBy: { [sortBy]: sortOrder }
+      orderBy
     }),
     prisma.assessment.count({ where })
   ]);
@@ -217,9 +221,21 @@ export const update = async (
     throw new AppError(409, "Archived assessments cannot be edited");
   }
 
+  const data: Prisma.AssessmentUpdateInput = {};
+  if (payload.title !== undefined) data.title = payload.title as string;
+  if (payload.slug !== undefined) data.slug = payload.slug as string;
+  if (payload.description !== undefined) data.description = payload.description as string;
+  if (payload.difficulty !== undefined) data.difficulty = payload.difficulty as Difficulty;
+  if (payload.durationMinutes !== undefined) {
+    data.durationMinutes = payload.durationMinutes as number;
+  }
+  if (payload.passingScore !== undefined) data.passingScore = payload.passingScore as number;
+  if (payload.feeCents !== undefined) data.feeCents = payload.feeCents as number;
+  if (payload.currency !== undefined) data.currency = payload.currency as string;
+
   const result = await prisma.assessment.update({
     where: { id },
-    data: payload as Prisma.AssessmentUpdateInput,
+    data,
     select: assessmentPublicSelect
   });
   await clearAssessmentCache();
@@ -343,11 +359,10 @@ export const updateQuestion = async (
   if (!question) throw new AppError(404, "Question not found");
 
   const data: Prisma.QuestionUpdateInput = {};
-  for (const key of ["prompt", "type", "points", "order"] as const) {
-    if (payload[key] !== undefined) {
-      (data as Record<string, unknown>)[key] = payload[key];
-    }
-  }
+  if (payload.prompt !== undefined) data.prompt = payload.prompt as string;
+  if (payload.type !== undefined) data.type = payload.type as QuestionType;
+  if (payload.points !== undefined) data.points = payload.points as number;
+  if (payload.order !== undefined) data.order = payload.order as number;
   if ("options" in payload) {
     data.options =
       payload.options === null

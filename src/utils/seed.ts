@@ -1,0 +1,58 @@
+import bcrypt from "bcryptjs";
+import { Role } from "@prisma/client";
+import { config } from "../config";
+import { prisma } from "../lib/prisma";
+
+const seedUser = async (
+  name: string,
+  email: string,
+  password: string,
+  role: Role
+) => {
+  const existing = await prisma.user.findUnique({ where: { email } });
+
+  if (existing) {
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        name,
+        role,
+        status: "ACTIVE",
+        deletedAt: null
+      }
+    });
+    return;
+  }
+
+  const hashed = await bcrypt.hash(password, config.BCRYPT_SALT_ROUNDS);
+  await prisma.user.create({
+    data: {
+      name,
+      email,
+      password: hashed,
+      role
+    }
+  });
+};
+
+export const seedDemoUsers = async () => {
+  await seedUser(
+    config.SEED_ADMIN_NAME,
+    config.SEED_ADMIN_EMAIL,
+    config.SEED_ADMIN_PASSWORD,
+    Role.ADMIN
+  );
+  await seedUser(
+    config.SEED_REVIEWER_NAME,
+    config.SEED_REVIEWER_EMAIL,
+    config.SEED_REVIEWER_PASSWORD,
+    Role.REVIEWER
+  );
+  await seedUser(
+    config.SEED_CANDIDATE_NAME,
+    config.SEED_CANDIDATE_EMAIL,
+    config.SEED_CANDIDATE_PASSWORD,
+    Role.CANDIDATE
+  );
+  console.log("Demo users are ready.");
+};
