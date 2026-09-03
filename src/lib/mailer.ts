@@ -9,8 +9,8 @@ const transporter =
         secure: config.SMTP_SECURE,
         auth: {
           user: config.SMTP_USER,
-          pass: config.SMTP_PASSWORD
-        }
+          pass: config.SMTP_PASSWORD,
+        },
       })
     : null;
 
@@ -26,6 +26,6 @@ export const sendEmail = async (to: string, subject: string, text: string) => {
     from: config.EMAIL_FROM,
     to,
     subject,
-    text
+    text,
   });
 };

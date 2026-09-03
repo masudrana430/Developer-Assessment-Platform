@@ -6,7 +6,7 @@ export const writeAuditLog = async (
   action: string,
   entityType: string,
   entityId?: string | null,
-  metadata?: Prisma.InputJsonValue
+  metadata?: Prisma.InputJsonValue,
 ) => {
   await prisma.auditLog.create({
     data: {
@@ -14,7 +14,7 @@ export const writeAuditLog = async (
       action,
       entityType,
       entityId: entityId ?? null,
-      ...(metadata !== undefined ? { metadata } : {})
-    }
+      ...(metadata !== undefined ? { metadata } : {}),
+    },
   });
 };

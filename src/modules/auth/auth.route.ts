@@ -7,7 +7,7 @@ import {
   loginSchema,
   logoutSchema,
   refreshSchema,
-  registerSchema
+  registerSchema,
 } from "./auth.validation";
 
 export const authRouter = Router();

@@ -1,9 +1,4 @@
-import {
-  AttemptStatus,
-  Prisma,
-  QuestionType,
-  ReviewDecision
-} from "@prisma/client";
+import { AttemptStatus, Prisma, QuestionType, ReviewDecision } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/AppError";
 import { writeAuditLog } from "../../utils/audit";
@@ -14,7 +9,7 @@ export const queue = async (query: { page: number; limit: number }) => {
   const where: Prisma.AttemptWhereInput = {
     status: AttemptStatus.SUBMITTED,
     reviewerId: null,
-    deletedAt: null
+    deletedAt: null,
   };
 
   const [data, total] = await prisma.$transaction([
@@ -31,18 +26,18 @@ export const queue = async (query: { page: number; limit: number }) => {
           select: {
             id: true,
             title: true,
-            difficulty: true
-          }
+            difficulty: true,
+          },
         },
         candidate: {
           select: {
             id: true,
-            name: true
-          }
-        }
-      }
+            name: true,
+          },
+        },
+      },
     }),
-    prisma.attempt.count({ where })
+    prisma.attempt.count({ where }),
   ]);
 
   return { data, meta: buildMeta(page, limit, total) };
@@ -54,18 +49,18 @@ export const claim = async (reviewerId: string, attemptId: string) => {
       id: attemptId,
       status: AttemptStatus.SUBMITTED,
       reviewerId: null,
-      deletedAt: null
+      deletedAt: null,
     },
     data: {
       reviewerId,
-      status: AttemptStatus.UNDER_REVIEW
-    }
+      status: AttemptStatus.UNDER_REVIEW,
+    },
   });
 
   if (result.count !== 1) {
     const existing = await prisma.attempt.findUnique({
       where: { id: attemptId },
-      select: { reviewerId: true, status: true }
+      select: { reviewerId: true, status: true },
     });
     if (!existing) throw new AppError(404, "Attempt not found");
     throw new AppError(409, "Attempt has already been claimed or is not reviewable");
@@ -81,8 +76,8 @@ export const getReviewAttempt = async (reviewerId: string, attemptId: string) =>
       id: attemptId,
       reviewerId,
       status: {
-        in: [AttemptStatus.UNDER_REVIEW, AttemptStatus.EVALUATED]
-      }
+        in: [AttemptStatus.UNDER_REVIEW, AttemptStatus.EVALUATED],
+      },
     },
     select: {
       id: true,
@@ -113,22 +108,22 @@ export const getReviewAttempt = async (reviewerId: string, attemptId: string) =>
                   response: true,
                   autoScore: true,
                   reviewerScore: true,
-                  feedback: true
-                }
-              }
-            }
-          }
-        }
+                  feedback: true,
+                },
+              },
+            },
+          },
+        },
       },
       candidate: {
         select: {
           id: true,
           name: true,
-          email: true
-        }
+          email: true,
+        },
       },
-      review: true
-    }
+      review: true,
+    },
   });
   if (!attempt) throw new AppError(404, "Review assignment not found");
   return attempt;
@@ -140,7 +135,7 @@ export const evaluate = async (
   payload: {
     feedback: string;
     answers: Array<{ answerId: string; score: number; feedback?: string }>;
-  }
+  },
 ) => {
   const result = await prisma.$transaction(
     async (tx) => {
@@ -148,33 +143,29 @@ export const evaluate = async (
         where: {
           id: attemptId,
           reviewerId,
-          status: AttemptStatus.UNDER_REVIEW
+          status: AttemptStatus.UNDER_REVIEW,
         },
         include: {
           assessment: {
             include: {
               questions: {
-                where: { deletedAt: null }
-              }
-            }
+                where: { deletedAt: null },
+              },
+            },
           },
           answers: {
-            include: { question: true }
-          }
-        }
+            include: { question: true },
+          },
+        },
       });
 
       if (!attempt) {
         throw new AppError(404, "Under-review attempt assigned to you was not found");
       }
 
-      const submittedScores = new Map(
-        payload.answers.map((item) => [item.answerId, item])
-      );
+      const submittedScores = new Map(payload.answers.map((item) => [item.answerId, item]));
       const attemptAnswerIds = new Set(attempt.answers.map((answer) => answer.id));
-      const unknownAnswer = payload.answers.find(
-        (item) => !attemptAnswerIds.has(item.answerId)
-      );
+      const unknownAnswer = payload.answers.find((item) => !attemptAnswerIds.has(item.answerId));
       if (unknownAnswer) {
         throw new AppError(400, "One or more graded answers do not belong to this attempt");
       }
@@ -186,26 +177,26 @@ export const evaluate = async (
         if (grade.score > answer.question.points) {
           throw new AppError(
             400,
-            `Score for answer ${answer.id} cannot exceed ${answer.question.points}`
+            `Score for answer ${answer.id} cannot exceed ${answer.question.points}`,
           );
         }
         await tx.answer.update({
           where: { id: answer.id },
           data: {
             reviewerScore: grade.score,
-            feedback: grade.feedback
-          }
+            feedback: grade.feedback,
+          },
         });
       }
 
       const refreshedAnswers = await tx.answer.findMany({
         where: { attemptId },
-        include: { question: true }
+        include: { question: true },
       });
 
       const totalPoints = attempt.assessment.questions.reduce(
         (sum, question) => sum + question.points,
-        0
+        0,
       );
       if (totalPoints <= 0) throw new AppError(409, "Assessment has no scoreable points");
 
@@ -226,8 +217,8 @@ export const evaluate = async (
           reviewerId,
           feedback: payload.feedback,
           totalScore: finalScore,
-          decision
-        }
+          decision,
+        },
       });
 
       await tx.attempt.update({
@@ -236,32 +227,29 @@ export const evaluate = async (
           status: AttemptStatus.EVALUATED,
           finalScore,
           passed,
-          evaluatedAt: new Date()
-        }
+          evaluatedAt: new Date(),
+        },
       });
 
       return review;
     },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
 
   await writeAuditLog(reviewerId, "REVIEW_EVALUATE", "Attempt", attemptId, {
     totalScore: result.totalScore,
-    decision: result.decision
+    decision: result.decision,
   });
   return result;
 };
 
-export const mine = async (
-  reviewerId: string,
-  query: { page: number; limit: number }
-) => {
+export const mine = async (reviewerId: string, query: { page: number; limit: number }) => {
   const { page, limit, skip } = getPagination(query.page, query.limit);
   const where: Prisma.AttemptWhereInput = {
     reviewerId,
     status: {
-      in: [AttemptStatus.UNDER_REVIEW, AttemptStatus.EVALUATED]
-    }
+      in: [AttemptStatus.UNDER_REVIEW, AttemptStatus.EVALUATED],
+    },
   };
 
   const [data, total] = await prisma.$transaction([
@@ -278,14 +266,14 @@ export const mine = async (
         finalScore: true,
         passed: true,
         assessment: {
-          select: { id: true, title: true }
+          select: { id: true, title: true },
         },
         candidate: {
-          select: { id: true, name: true }
-        }
-      }
+          select: { id: true, name: true },
+        },
+      },
     }),
-    prisma.attempt.count({ where })
+    prisma.attempt.count({ where }),
   ]);
 
   return { data, meta: buildMeta(page, limit, total) };

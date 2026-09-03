@@ -2,15 +2,11 @@ import { v2 as cloudinary } from "cloudinary";
 import { config } from "../config";
 import { AppError } from "../utils/AppError";
 
-if (
-  config.CLOUDINARY_CLOUD_NAME &&
-  config.CLOUDINARY_API_KEY &&
-  config.CLOUDINARY_API_SECRET
-) {
+if (config.CLOUDINARY_CLOUD_NAME && config.CLOUDINARY_API_KEY && config.CLOUDINARY_API_SECRET) {
   cloudinary.config({
     cloud_name: config.CLOUDINARY_CLOUD_NAME,
     api_key: config.CLOUDINARY_API_KEY,
-    api_secret: config.CLOUDINARY_API_SECRET
+    api_secret: config.CLOUDINARY_API_SECRET,
   });
 }
 
@@ -32,7 +28,7 @@ export const uploadImageBuffer = async (buffer: Buffer) => {
           return;
         }
         resolve(result.secure_url);
-      }
+      },
     );
     stream.end(buffer);
   });

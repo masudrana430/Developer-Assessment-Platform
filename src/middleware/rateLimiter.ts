@@ -8,8 +8,8 @@ export const apiLimiter = rateLimit({
   message: {
     success: false,
     message: "Too many requests. Please try again later.",
-    errors: []
-  }
+    errors: [],
+  },
 });
 
 export const authLimiter = rateLimit({
@@ -20,6 +20,6 @@ export const authLimiter = rateLimit({
   message: {
     success: false,
     message: "Too many authentication attempts. Please try again later.",
-    errors: []
-  }
+    errors: [],
+  },
 });

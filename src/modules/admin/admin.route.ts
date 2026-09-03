@@ -6,9 +6,9 @@ import * as controller from "./admin.controller";
 import {
   auditListSchema,
   listUsersSchema,
-  updateStatusSchema,
   updateRoleSchema,
-  userIdSchema
+  updateStatusSchema,
+  userIdSchema,
 } from "./admin.validation";
 
 export const adminRouter = Router();
@@ -18,17 +18,9 @@ adminRouter.get("/users", validateRequest(listUsersSchema), controller.listUsers
 adminRouter.patch(
   "/users/:userId/status",
   validateRequest(updateStatusSchema),
-  controller.updateStatus
+  controller.updateStatus,
 );
-adminRouter.patch(
-  "/users/:userId/role",
-  validateRequest(updateRoleSchema),
-  controller.updateRole
-);
-adminRouter.delete(
-  "/users/:userId",
-  validateRequest(userIdSchema),
-  controller.softDeleteUser
-);
+adminRouter.patch("/users/:userId/role", validateRequest(updateRoleSchema), controller.updateRole);
+adminRouter.delete("/users/:userId", validateRequest(userIdSchema), controller.softDeleteUser);
 adminRouter.get("/stats", controller.stats);
 adminRouter.get("/audit-logs", validateRequest(auditListSchema), controller.auditLogs);

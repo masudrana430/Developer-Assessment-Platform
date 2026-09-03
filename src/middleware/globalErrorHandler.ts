@@ -1,5 +1,5 @@
-import type { ErrorRequestHandler } from "express";
 import { Prisma } from "@prisma/client";
+import type { ErrorRequestHandler } from "express";
 import multer from "multer";
 import { AppError } from "../utils/AppError";
 
@@ -15,10 +15,7 @@ export const globalErrorHandler: ErrorRequestHandler = (error, _req, res, _next)
   } else if (error instanceof multer.MulterError) {
     statusCode = 400;
     message = error.code === "LIMIT_FILE_SIZE" ? "Uploaded file is too large" : error.message;
-  } else if (
-    error instanceof SyntaxError &&
-    "body" in error
-  ) {
+  } else if (error instanceof SyntaxError && "body" in error) {
     statusCode = 400;
     message = "Malformed JSON request body";
   } else if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -46,6 +43,6 @@ export const globalErrorHandler: ErrorRequestHandler = (error, _req, res, _next)
   res.status(statusCode).json({
     success: false,
     message,
-    errors
+    errors,
   });
 };

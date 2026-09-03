@@ -7,13 +7,13 @@ export const validateRequest = (schema: ZodType): RequestHandler => {
     const parsed = schema.safeParse({
       body: req.body,
       params: req.params,
-      query: req.query
+      query: req.query,
     });
 
     if (!parsed.success) {
       const errors = parsed.error.issues.map((issue) => ({
         path: issue.path.join("."),
-        message: issue.message
+        message: issue.message,
       }));
       next(new AppError(400, "Validation failed", errors));
       return;

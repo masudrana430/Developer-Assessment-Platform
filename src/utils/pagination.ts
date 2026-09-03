@@ -4,7 +4,7 @@ export const getPagination = (pageValue: unknown, limitValue: unknown) => {
   return {
     page,
     limit,
-    skip: (page - 1) * limit
+    skip: (page - 1) * limit,
   };
 };
 
@@ -12,5 +12,5 @@ export const buildMeta = (page: number, limit: number, total: number) => ({
   page,
   limit,
   total,
-  totalPages: Math.ceil(total / limit)
+  totalPages: Math.ceil(total / limit),
 });

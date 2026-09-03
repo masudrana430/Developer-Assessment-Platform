@@ -11,7 +11,7 @@ export const verifyGoogleIdToken = async (credential: string) => {
 
   const ticket = await client.verifyIdToken({
     idToken: credential,
-    audience: config.GOOGLE_CLIENT_ID
+    audience: config.GOOGLE_CLIENT_ID,
   });
 
   const payload = ticket.getPayload();
@@ -23,6 +23,6 @@ export const verifyGoogleIdToken = async (credential: string) => {
     googleId: payload.sub,
     email: payload.email.toLowerCase(),
     name: payload.name || payload.email.split("@")[0],
-    avatarUrl: payload.picture
+    avatarUrl: payload.picture,
   };
 };

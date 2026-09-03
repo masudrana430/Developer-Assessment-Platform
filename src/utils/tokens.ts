@@ -16,12 +16,12 @@ type RefreshPayload = {
 
 export const createAccessToken = (payload: AccessPayload) =>
   jwt.sign(payload, config.JWT_ACCESS_SECRET, {
-    expiresIn: config.JWT_ACCESS_EXPIRES_IN as SignOptions["expiresIn"]
+    expiresIn: config.JWT_ACCESS_EXPIRES_IN as SignOptions["expiresIn"],
   });
 
 export const createRefreshToken = (payload: RefreshPayload) =>
   jwt.sign(payload, config.JWT_REFRESH_SECRET, {
-    expiresIn: config.JWT_REFRESH_EXPIRES_IN as SignOptions["expiresIn"]
+    expiresIn: config.JWT_REFRESH_EXPIRES_IN as SignOptions["expiresIn"],
   });
 
 export const verifyAccessToken = (token: string) =>

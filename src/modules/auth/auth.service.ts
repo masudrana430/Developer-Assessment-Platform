@@ -1,16 +1,12 @@
-import bcrypt from "bcryptjs";
 import { Role, UserStatus } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { config } from "../../config";
 import { verifyGoogleIdToken } from "../../lib/google";
-import { prisma } from "../../lib/prisma";
 import { sendEmail } from "../../lib/mailer";
+import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/AppError";
 import { writeAuditLog } from "../../utils/audit";
-import {
-  createAccessToken,
-  createRefreshToken,
-  verifyRefreshToken
-} from "../../utils/tokens";
+import { createAccessToken, createRefreshToken, verifyRefreshToken } from "../../utils/tokens";
 
 const publicUserSelect = {
   id: true,
@@ -19,32 +15,23 @@ const publicUserSelect = {
   role: true,
   status: true,
   avatarUrl: true,
-  createdAt: true
+  createdAt: true,
 } as const;
 
-const createSession = (user: {
-  id: string;
-  email: string;
-  role: Role;
-  tokenVersion: number;
-}) => ({
+const createSession = (user: { id: string; email: string; role: Role; tokenVersion: number }) => ({
   accessToken: createAccessToken({
     sub: user.id,
     email: user.email,
-    role: user.role
+    role: user.role,
   }),
   refreshToken: createRefreshToken({
     sub: user.id,
     tokenVersion: user.tokenVersion,
-    type: "refresh"
-  })
+    type: "refresh",
+  }),
 });
 
-export const register = async (payload: {
-  name: string;
-  email: string;
-  password: string;
-}) => {
+export const register = async (payload: { name: string; email: string; password: string }) => {
   const existing = await prisma.user.findUnique({ where: { email: payload.email } });
   if (existing) {
     throw new AppError(409, "An account with this email already exists");
@@ -57,25 +44,25 @@ export const register = async (payload: {
       name: payload.name,
       email: payload.email,
       password: hashedPassword,
-      role: Role.CANDIDATE
+      role: Role.CANDIDATE,
     },
     select: {
       ...publicUserSelect,
-      tokenVersion: true
-    }
+      tokenVersion: true,
+    },
   });
 
   await writeAuditLog(user.id, "AUTH_REGISTER", "User", user.id);
   void sendEmail(
     user.email,
     "Welcome to DevAssess",
-    `Hi ${user.name}, your candidate account is ready.`
+    `Hi ${user.name}, your candidate account is ready.`,
   ).catch(() => undefined);
 
   const { tokenVersion, ...safeUser } = user;
   return {
     user: safeUser,
-    ...createSession({ ...safeUser, tokenVersion })
+    ...createSession({ ...safeUser, tokenVersion }),
   };
 };
 
@@ -83,8 +70,8 @@ export const login = async (payload: { email: string; password: string }) => {
   const user = await prisma.user.findFirst({
     where: {
       email: payload.email,
-      deletedAt: null
-    }
+      deletedAt: null,
+    },
   });
 
   if (!user?.password) {
@@ -103,12 +90,12 @@ export const login = async (payload: { email: string; password: string }) => {
 
   const safeUser = await prisma.user.findUniqueOrThrow({
     where: { id: user.id },
-    select: publicUserSelect
+    select: publicUserSelect,
   });
 
   return {
     user: safeUser,
-    ...createSession(user)
+    ...createSession(user),
   };
 };
 
@@ -116,7 +103,7 @@ export const googleLogin = async (credential: string) => {
   const googleUser = await verifyGoogleIdToken(credential);
 
   const existing = await prisma.user.findUnique({
-    where: { email: googleUser.email }
+    where: { email: googleUser.email },
   });
 
   if (existing?.deletedAt) {
@@ -131,8 +118,8 @@ export const googleLogin = async (credential: string) => {
         where: { id: existing.id },
         data: {
           googleId: existing.googleId ?? googleUser.googleId,
-          avatarUrl: existing.avatarUrl ?? googleUser.avatarUrl
-        }
+          avatarUrl: existing.avatarUrl ?? googleUser.avatarUrl,
+        },
       })
     : await prisma.user.create({
         data: {
@@ -140,25 +127,25 @@ export const googleLogin = async (credential: string) => {
           email: googleUser.email,
           googleId: googleUser.googleId,
           avatarUrl: googleUser.avatarUrl,
-          role: Role.CANDIDATE
-        }
+          role: Role.CANDIDATE,
+        },
       });
 
   await writeAuditLog(user.id, "AUTH_GOOGLE_LOGIN", "User", user.id);
 
   const safeUser = await prisma.user.findUniqueOrThrow({
     where: { id: user.id },
-    select: publicUserSelect
+    select: publicUserSelect,
   });
 
   return {
     user: safeUser,
-    ...createSession(user)
+    ...createSession(user),
   };
 };
 
 export const refresh = async (token: string) => {
-  let payload;
+  let payload: ReturnType<typeof verifyRefreshToken>;
   try {
     payload = verifyRefreshToken(token);
   } catch {
@@ -173,8 +160,8 @@ export const refresh = async (token: string) => {
     where: {
       id: payload.sub,
       deletedAt: null,
-      status: UserStatus.ACTIVE
-    }
+      status: UserStatus.ACTIVE,
+    },
   });
 
   if (!user || user.tokenVersion !== payload.tokenVersion) {
@@ -185,7 +172,7 @@ export const refresh = async (token: string) => {
 };
 
 export const logout = async (token: string) => {
-  let payload;
+  let payload: ReturnType<typeof verifyRefreshToken>;
   try {
     payload = verifyRefreshToken(token);
   } catch {
@@ -194,7 +181,7 @@ export const logout = async (token: string) => {
 
   await prisma.user.update({
     where: { id: payload.sub },
-    data: { tokenVersion: { increment: 1 } }
+    data: { tokenVersion: { increment: 1 } },
   });
 
   await writeAuditLog(payload.sub, "AUTH_LOGOUT", "User", payload.sub);

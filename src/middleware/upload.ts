@@ -10,5 +10,5 @@ export const uploadAvatar = multer({
       return;
     }
     callback(null, true);
-  }
+  },
 });

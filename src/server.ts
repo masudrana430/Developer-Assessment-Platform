@@ -1,7 +1,7 @@
 import { app } from "./app";
 import { config } from "./config";
-import { connectRedis, redisClient } from "./lib/redis";
 import { prisma } from "./lib/prisma";
+import { connectRedis, redisClient } from "./lib/redis";
 import { seedDemoUsers } from "./utils/seed";
 
 const start = async () => {

@@ -12,12 +12,12 @@ export const sendResponse = <T>(
   statusCode: number,
   message: string,
   data: T,
-  meta?: Meta
+  meta?: Meta,
 ) => {
   res.status(statusCode).json({
     success: true,
     message,
     data,
-    ...(meta ? { meta } : {})
+    ...(meta ? { meta } : {}),
   });
 };

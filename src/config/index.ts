@@ -2,9 +2,7 @@ import "dotenv/config";
 import { z } from "zod";
 
 const envSchema = z.object({
-  NODE_ENV: z
-    .enum(["development", "test", "production"])
-    .default("development"),
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(5000),
   DATABASE_URL: z.string().min(1),
   JWT_ACCESS_SECRET: z.string().min(16),
@@ -31,16 +29,12 @@ const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional().or(z.literal("")),
   STRIPE_RETURN_URL: z.string().default("http://localhost:3000/payment/return"),
   STRIPE_SUCCESS_URL: z
-  .string()
-  .default(
-    "http://localhost:5000/api/v1/payments/checkout/success?session_id={CHECKOUT_SESSION_ID}"
-  ),
+    .string()
+    .default(
+      "http://localhost:5000/api/v1/payments/checkout/success?session_id={CHECKOUT_SESSION_ID}",
+    ),
 
-STRIPE_CANCEL_URL: z
-  .string()
-  .default(
-    "http://localhost:5000/api/v1/payments/checkout/cancel"
-  ),
+  STRIPE_CANCEL_URL: z.string().default("http://localhost:5000/api/v1/payments/checkout/cancel"),
   SEED_ADMIN_NAME: z.string().default("Platform Admin"),
   SEED_ADMIN_EMAIL: z.string().email().default("admin@devassess.com"),
   SEED_ADMIN_PASSWORD: z.string().min(8).default("Admin123!"),
@@ -55,10 +49,7 @@ STRIPE_CANCEL_URL: z
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error(
-    "Invalid environment configuration:",
-    parsed.error.flatten().fieldErrors,
-  );
+  console.error("Invalid environment configuration:", parsed.error.flatten().fieldErrors);
   throw new Error("Invalid environment configuration");
 }
 

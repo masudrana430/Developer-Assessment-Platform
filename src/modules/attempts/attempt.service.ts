@@ -1,9 +1,4 @@
-import {
-  AssessmentStatus,
-  AttemptStatus,
-  Prisma,
-  QuestionType
-} from "@prisma/client";
+import { AssessmentStatus, AttemptStatus, Prisma, QuestionType } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/AppError";
 import { writeAuditLog } from "../../utils/audit";
@@ -19,8 +14,8 @@ export const enroll = async (candidateId: string, assessmentId: string) => {
           where: {
             id: assessmentId,
             deletedAt: null,
-            status: AssessmentStatus.PUBLISHED
-          }
+            status: AssessmentStatus.PUBLISHED,
+          },
         });
         if (!assessment) throw new AppError(404, "Published assessment not found");
 
@@ -34,10 +29,10 @@ export const enroll = async (candidateId: string, assessmentId: string) => {
                 AttemptStatus.READY,
                 AttemptStatus.IN_PROGRESS,
                 AttemptStatus.SUBMITTED,
-                AttemptStatus.UNDER_REVIEW
-              ]
-            }
-          }
+                AttemptStatus.UNDER_REVIEW,
+              ],
+            },
+          },
         });
         if (active) {
           throw new AppError(409, "You already have an active attempt for this assessment");
@@ -46,7 +41,7 @@ export const enroll = async (candidateId: string, assessmentId: string) => {
         const latest = await tx.attempt.findFirst({
           where: { candidateId, assessmentId },
           orderBy: { attemptNo: "desc" },
-          select: { attemptNo: true }
+          select: { attemptNo: true },
         });
 
         return tx.attempt.create({
@@ -54,10 +49,7 @@ export const enroll = async (candidateId: string, assessmentId: string) => {
             candidateId,
             assessmentId,
             attemptNo: (latest?.attemptNo ?? 0) + 1,
-            status:
-              assessment.feeCents > 0
-                ? AttemptStatus.PENDING_PAYMENT
-                : AttemptStatus.READY
+            status: assessment.feeCents > 0 ? AttemptStatus.PENDING_PAYMENT : AttemptStatus.READY,
           },
           include: {
             assessment: {
@@ -66,24 +58,21 @@ export const enroll = async (candidateId: string, assessmentId: string) => {
                 title: true,
                 feeCents: true,
                 currency: true,
-                durationMinutes: true
-              }
-            }
-          }
+                durationMinutes: true,
+              },
+            },
+          },
         });
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
     await writeAuditLog(candidateId, "ATTEMPT_ENROLL", "Attempt", attempt.id, {
-      assessmentId
+      assessmentId,
     });
     return attempt;
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2034"
-    ) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
       throw new AppError(409, "Enrollment conflicted with another request; retry once");
     }
     throw error;
@@ -98,13 +87,13 @@ export const start = async (candidateId: string, attemptId: string) => {
       where: {
         id: attemptId,
         candidateId,
-        deletedAt: null
+        deletedAt: null,
       },
       include: {
         assessment: {
-          select: { durationMinutes: true }
-        }
-      }
+          select: { durationMinutes: true },
+        },
+      },
     });
     if (!attempt) throw new AppError(404, "Attempt not found");
     if (attempt.status === AttemptStatus.IN_PROGRESS) return attempt;
@@ -117,13 +106,13 @@ export const start = async (candidateId: string, attemptId: string) => {
       where: {
         id: attemptId,
         candidateId,
-        status: AttemptStatus.READY
+        status: AttemptStatus.READY,
       },
       data: {
         status: AttemptStatus.IN_PROGRESS,
         startedAt: now,
-        expiresAt
-      }
+        expiresAt,
+      },
     });
     if (updated.count !== 1) {
       throw new AppError(409, "Attempt state changed; reload and try again");
@@ -147,12 +136,12 @@ export const start = async (candidateId: string, attemptId: string) => {
                 type: true,
                 options: true,
                 points: true,
-                order: true
-              }
-            }
-          }
-        }
-      }
+                order: true,
+              },
+            },
+          },
+        },
+      },
     });
   });
 
@@ -164,14 +153,14 @@ export const saveAnswer = async (
   candidateId: string,
   attemptId: string,
   questionId: string,
-  response: unknown
+  response: unknown,
 ) => {
   const attempt = await prisma.attempt.findFirst({
     where: {
       id: attemptId,
       candidateId,
-      deletedAt: null
-    }
+      deletedAt: null,
+    },
   });
   if (!attempt) throw new AppError(404, "Attempt not found");
   if (attempt.status !== AttemptStatus.IN_PROGRESS) {
@@ -185,8 +174,8 @@ export const saveAnswer = async (
     where: {
       id: questionId,
       assessmentId: attempt.assessmentId,
-      deletedAt: null
-    }
+      deletedAt: null,
+    },
   });
   if (!question) throw new AppError(404, "Question not found in this assessment");
 
@@ -201,25 +190,25 @@ export const saveAnswer = async (
     where: {
       attemptId_questionId: {
         attemptId,
-        questionId
-      }
+        questionId,
+      },
     },
     create: {
       attemptId,
       questionId,
       response: response as Prisma.InputJsonValue,
-      autoScore
+      autoScore,
     },
     update: {
       response: response as Prisma.InputJsonValue,
-      autoScore
+      autoScore,
     },
     select: {
       id: true,
       questionId: true,
       response: true,
-      updatedAt: true
-    }
+      updatedAt: true,
+    },
   });
 };
 
@@ -229,19 +218,19 @@ export const submit = async (candidateId: string, attemptId: string) => {
       where: {
         id: attemptId,
         candidateId,
-        deletedAt: null
+        deletedAt: null,
       },
       include: {
         assessment: {
           include: {
             questions: {
               where: { deletedAt: null },
-              select: { id: true, points: true, type: true }
-            }
-          }
+              select: { id: true, points: true, type: true },
+            },
+          },
         },
-        answers: true
-      }
+        answers: true,
+      },
     });
 
     if (!attempt) throw new AppError(404, "Attempt not found");
@@ -259,13 +248,13 @@ export const submit = async (candidateId: string, attemptId: string) => {
       where: {
         id: attemptId,
         candidateId,
-        status: AttemptStatus.IN_PROGRESS
+        status: AttemptStatus.IN_PROGRESS,
       },
       data: {
         status: AttemptStatus.SUBMITTED,
         submittedAt: new Date(),
-        autoScore
-      }
+        autoScore,
+      },
     });
 
     if (updated.count !== 1) {
@@ -278,8 +267,8 @@ export const submit = async (candidateId: string, attemptId: string) => {
         id: true,
         status: true,
         submittedAt: true,
-        autoScore: true
-      }
+        autoScore: true,
+      },
     });
   });
 
@@ -289,13 +278,13 @@ export const submit = async (candidateId: string, attemptId: string) => {
 
 export const listMine = async (
   candidateId: string,
-  query: { page: number; limit: number; status?: AttemptStatus }
+  query: { page: number; limit: number; status?: AttemptStatus },
 ) => {
   const { page, limit, skip } = getPagination(query.page, query.limit);
   const where: Prisma.AttemptWhereInput = {
     candidateId,
     deletedAt: null,
-    ...(query.status ? { status: query.status } : {})
+    ...(query.status ? { status: query.status } : {}),
   };
 
   const [data, total] = await prisma.$transaction([
@@ -320,20 +309,20 @@ export const listMine = async (
             id: true,
             title: true,
             slug: true,
-            difficulty: true
-          }
+            difficulty: true,
+          },
         },
         payment: {
           select: {
             id: true,
             status: true,
             amountCents: true,
-            currency: true
-          }
-        }
-      }
+            currency: true,
+          },
+        },
+      },
     }),
-    prisma.attempt.count({ where })
+    prisma.attempt.count({ where }),
   ]);
 
   return { data, meta: buildMeta(page, limit, total) };
@@ -344,7 +333,7 @@ export const getCandidateAttempt = async (candidateId: string, attemptId: string
     where: {
       id: attemptId,
       candidateId,
-      deletedAt: null
+      deletedAt: null,
     },
     select: {
       id: true,
@@ -364,26 +353,26 @@ export const getCandidateAttempt = async (candidateId: string, attemptId: string
           passingScore: true,
           durationMinutes: true,
           feeCents: true,
-          currency: true
-        }
+          currency: true,
+        },
       },
       payment: {
         select: {
           id: true,
           status: true,
           amountCents: true,
-          currency: true
-        }
+          currency: true,
+        },
       },
       review: {
         select: {
           feedback: true,
           decision: true,
           totalScore: true,
-          createdAt: true
-        }
-      }
-    }
+          createdAt: true,
+        },
+      },
+    },
   });
 
   if (!summary) throw new AppError(404, "Attempt not found");
@@ -396,7 +385,7 @@ export const getCandidateAttempt = async (candidateId: string, attemptId: string
     where: {
       id: attemptId,
       candidateId,
-      deletedAt: null
+      deletedAt: null,
     },
     select: {
       id: true,
@@ -432,21 +421,21 @@ export const getCandidateAttempt = async (candidateId: string, attemptId: string
                   response: true,
                   autoScore: true,
                   reviewerScore: true,
-                  feedback: true
-                }
-              }
-            }
-          }
-        }
+                  feedback: true,
+                },
+              },
+            },
+          },
+        },
       },
       review: {
         select: {
           feedback: true,
           decision: true,
           totalScore: true,
-          createdAt: true
-        }
-      }
-    }
+          createdAt: true,
+        },
+      },
+    },
   });
 };

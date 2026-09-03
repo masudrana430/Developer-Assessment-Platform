@@ -1,5 +1,5 @@
-import type { RequestHandler } from "express";
 import { type Role, UserStatus } from "@prisma/client";
+import type { RequestHandler } from "express";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../utils/AppError";
 import { verifyAccessToken } from "../utils/tokens";
@@ -19,13 +19,13 @@ export const auth = (...roles: Role[]): RequestHandler => {
         where: {
           id: payload.sub,
           deletedAt: null,
-          status: UserStatus.ACTIVE
+          status: UserStatus.ACTIVE,
         },
         select: {
           id: true,
           email: true,
-          role: true
-        }
+          role: true,
+        },
       });
 
       if (!user) {

@@ -11,28 +11,34 @@ const password = z
 export const registerSchema = z.object({
   body: z.object({
     name: z.string().trim().min(2).max(80),
-    email: z.string().email().transform((v) => v.toLowerCase()),
-    password
-  })
+    email: z
+      .string()
+      .email()
+      .transform((v) => v.toLowerCase()),
+    password,
+  }),
 });
 
 export const loginSchema = z.object({
   body: z.object({
-    email: z.string().email().transform((v) => v.toLowerCase()),
-    password: z.string().min(1)
-  })
+    email: z
+      .string()
+      .email()
+      .transform((v) => v.toLowerCase()),
+    password: z.string().min(1),
+  }),
 });
 
 export const googleSchema = z.object({
   body: z.object({
-    credential: z.string().min(20)
-  })
+    credential: z.string().min(20),
+  }),
 });
 
 export const refreshSchema = z.object({
   body: z.object({
-    refreshToken: z.string().min(20)
-  })
+    refreshToken: z.string().min(20),
+  }),
 });
 
 export const logoutSchema = refreshSchema;

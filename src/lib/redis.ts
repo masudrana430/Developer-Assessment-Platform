@@ -1,9 +1,7 @@
 import { createClient } from "redis";
 import { config } from "../config";
 
-export const redisClient = config.REDIS_URL
-  ? createClient({ url: config.REDIS_URL })
-  : null;
+export const redisClient = config.REDIS_URL ? createClient({ url: config.REDIS_URL }) : null;
 
 if (redisClient) {
   redisClient.on("error", (error) => {
@@ -16,7 +14,7 @@ export const connectRedis = async () => {
   try {
     await redisClient.connect();
     console.log("Redis connected.");
-  } catch (error) {
+  } catch {
     console.warn("Redis unavailable; continuing without cache.");
   }
 };

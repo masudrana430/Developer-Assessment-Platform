@@ -7,7 +7,7 @@ import {
   attemptPaymentSchema,
   confirmPaymentSchema,
   initiatePaymentSchema,
-  paymentIdSchema
+  paymentIdSchema,
 } from "./payment.validation";
 
 export const paymentRouter = Router();
@@ -16,40 +16,34 @@ paymentRouter.post(
   "/attempts/:attemptId/initiate",
   auth(Role.CANDIDATE),
   validateRequest(initiatePaymentSchema),
-  controller.initiate
+  controller.initiate,
 );
 paymentRouter.post(
   "/:paymentId/confirm",
   auth(Role.CANDIDATE),
   validateRequest(confirmPaymentSchema),
-  controller.confirm
+  controller.confirm,
 );
 paymentRouter.get(
   "/attempts/:attemptId",
   auth(Role.CANDIDATE),
   validateRequest(attemptPaymentSchema),
-  controller.getByAttempt
+  controller.getByAttempt,
 );
 paymentRouter.get(
   "/:paymentId",
   auth(Role.CANDIDATE, Role.ADMIN),
   validateRequest(paymentIdSchema),
-  controller.getById
+  controller.getById,
 );
 
 paymentRouter.post(
   "/attempts/:attemptId/checkout",
   auth(Role.CANDIDATE),
   validateRequest(attemptPaymentSchema),
-  controller.createCheckoutSession
+  controller.createCheckoutSession,
 );
 
-paymentRouter.get(
-  "/checkout/success",
-  controller.checkoutSuccess
-);
+paymentRouter.get("/checkout/success", controller.checkoutSuccess);
 
-paymentRouter.get(
-  "/checkout/cancel",
-  controller.checkoutCancel
-);
+paymentRouter.get("/checkout/cancel", controller.checkoutCancel);
