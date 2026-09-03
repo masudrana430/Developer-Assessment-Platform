@@ -60,6 +60,52 @@ const syncPaymentIntent = async (intent: Stripe.PaymentIntent) => {
   });
 };
 
+const markCheckoutPaid = async (
+  session: Stripe.Checkout.Session
+) => {
+  const paymentId = session.metadata?.paymentId;
+  const attemptId = session.metadata?.attemptId;
+
+  if (!paymentId || !attemptId) {
+    return;
+  }
+
+  if (session.payment_status !== "paid") {
+    return;
+  }
+
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id ?? null;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.payment.updateMany({
+      where: {
+        id: paymentId,
+        status: {
+          not: PaymentStatus.SUCCEEDED
+        }
+      },
+      data: {
+        status: PaymentStatus.SUCCEEDED,
+        stripePaymentIntentId: paymentIntentId,
+        failureReason: null
+      }
+    });
+
+    await tx.attempt.updateMany({
+      where: {
+        id: attemptId,
+        status: AttemptStatus.PENDING_PAYMENT
+      },
+      data: {
+        status: AttemptStatus.READY
+      }
+    });
+  });
+};
+
 export const initiate = async (
   candidateId: string,
   attemptId: string,
@@ -234,14 +280,28 @@ export const getByAttempt = async (candidateId: string, attemptId: string) => {
   return payment;
 };
 
-export const handleWebhook = async (rawBody: Buffer, signature: string | undefined) => {
+export const handleWebhook = async (
+  rawBody: Buffer,
+  signature: string | undefined
+) => {
   const stripe = getStripe();
+
   if (!config.STRIPE_WEBHOOK_SECRET) {
-    throw new AppError(503, "Stripe webhook secret is not configured");
+    throw new AppError(
+      503,
+      "Stripe webhook secret is not configured"
+    );
   }
-  if (!signature) throw new AppError(400, "Missing Stripe-Signature header");
+
+  if (!signature) {
+    throw new AppError(
+      400,
+      "Missing Stripe-Signature header"
+    );
+  }
 
   let event: Stripe.Event;
+
   try {
     event = stripe.webhooks.constructEvent(
       rawBody,
@@ -249,18 +309,199 @@ export const handleWebhook = async (rawBody: Buffer, signature: string | undefin
       config.STRIPE_WEBHOOK_SECRET
     );
   } catch {
-    throw new AppError(400, "Invalid Stripe webhook signature");
+    throw new AppError(
+      400,
+      "Invalid Stripe webhook signature"
+    );
   }
 
-  if (
-    event.type === "payment_intent.succeeded" ||
-    event.type === "payment_intent.payment_failed" ||
-    event.type === "payment_intent.canceled" ||
-    event.type === "payment_intent.processing"
-  ) {
-    const intent = event.data.object as Stripe.PaymentIntent;
-    await syncPaymentIntent(intent);
+  switch (event.type) {
+    case "checkout.session.completed": {
+      const session =
+        event.data.object as Stripe.Checkout.Session;
+
+      await markCheckoutPaid(session);
+
+      break;
+    }
+
+    case "checkout.session.async_payment_succeeded": {
+      const session =
+        event.data.object as Stripe.Checkout.Session;
+
+      await markCheckoutPaid(session);
+
+      break;
+    }
+
+    case "checkout.session.expired": {
+      const session =
+        event.data.object as Stripe.Checkout.Session;
+
+      const paymentId = session.metadata?.paymentId;
+
+      if (paymentId) {
+        await prisma.payment.updateMany({
+          where: {
+            id: paymentId,
+            status: PaymentStatus.PENDING
+          },
+          data: {
+            status: PaymentStatus.CANCELLED
+          }
+        });
+      }
+
+      break;
+    }
+
+    case "payment_intent.succeeded":
+    case "payment_intent.payment_failed":
+    case "payment_intent.canceled":
+    case "payment_intent.processing": {
+      const intent =
+        event.data.object as Stripe.PaymentIntent;
+
+      await syncPaymentIntent(intent);
+
+      break;
+    }
+
+    default:
+      break;
   }
 
-  return { received: true, eventType: event.type };
+  return {
+    received: true,
+    eventType: event.type
+  };
 };
+
+export const createCheckoutSession = async (
+  candidateId: string,
+  attemptId: string
+) => {
+  const stripe = getStripe();
+
+  const attempt = await prisma.attempt.findFirst({
+    where: {
+      id: attemptId,
+      candidateId,
+      deletedAt: null
+    },
+    include: {
+      assessment: true,
+      payment: true,
+      candidate: {
+        select: {
+          email: true
+        }
+      }
+    }
+  });
+
+  if (!attempt) {
+    throw new AppError(404, "Attempt not found");
+  }
+
+  if (attempt.assessment.feeCents <= 0) {
+    throw new AppError(
+      409,
+      "This assessment does not require payment"
+    );
+  }
+
+  if (attempt.payment?.status === PaymentStatus.SUCCEEDED) {
+    throw new AppError(409, "Payment has already been completed");
+  }
+
+  if (attempt.status !== AttemptStatus.PENDING_PAYMENT) {
+    throw new AppError(
+      409,
+      "Checkout cannot be created for this attempt"
+    );
+  }
+
+  const payment =
+    attempt.payment ??
+    (await prisma.payment.create({
+      data: {
+        attemptId,
+        userId: candidateId,
+        amountCents: attempt.assessment.feeCents,
+        currency: attempt.assessment.currency,
+        status: PaymentStatus.PENDING
+      }
+    }));
+
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+
+    payment_method_types: ["card"],
+
+    customer_email: attempt.candidate.email,
+
+    line_items: [
+      {
+        price_data: {
+          currency: payment.currency,
+          unit_amount: payment.amountCents,
+
+          product_data: {
+            name: attempt.assessment.title,
+            description: "Developer Assessment Enrollment"
+          }
+        },
+
+        quantity: 1
+      }
+    ],
+
+    success_url: config.STRIPE_SUCCESS_URL,
+
+    cancel_url: config.STRIPE_CANCEL_URL,
+
+    client_reference_id: attemptId,
+
+    metadata: {
+      paymentId: payment.id,
+      attemptId,
+      candidateId
+    },
+
+    payment_intent_data: {
+      metadata: {
+        paymentId: payment.id,
+        attemptId,
+        candidateId
+      }
+    }
+  });
+
+  await prisma.payment.update({
+    where: {
+      id: payment.id
+    },
+    data: {
+      stripeCheckoutSessionId: session.id
+    }
+  });
+
+  await writeAuditLog(
+    candidateId,
+    "CHECKOUT_SESSION_CREATED",
+    "Payment",
+    payment.id,
+    {
+      attemptId,
+      stripeCheckoutSessionId: session.id
+    }
+  );
+
+  return {
+    paymentId: payment.id,
+    sessionId: session.id,
+    checkoutUrl: session.url
+  };
+};
+

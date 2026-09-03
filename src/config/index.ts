@@ -2,7 +2,9 @@ import "dotenv/config";
 import { z } from "zod";
 
 const envSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  NODE_ENV: z
+    .enum(["development", "test", "production"])
+    .default("development"),
   PORT: z.coerce.number().int().positive().default(5000),
   DATABASE_URL: z.string().min(1),
   JWT_ACCESS_SECRET: z.string().min(16),
@@ -15,7 +17,10 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional().or(z.literal("")),
   SMTP_HOST: z.string().optional().or(z.literal("")),
   SMTP_PORT: z.coerce.number().int().positive().default(587),
-  SMTP_SECURE: z.string().default("false").transform((v) => v === "true"),
+  SMTP_SECURE: z
+    .string()
+    .default("false")
+    .transform((v) => v === "true"),
   SMTP_USER: z.string().optional().or(z.literal("")),
   SMTP_PASSWORD: z.string().optional().or(z.literal("")),
   EMAIL_FROM: z.string().default("DevAssess <no-reply@example.com>"),
@@ -25,6 +30,17 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional().or(z.literal("")),
   STRIPE_WEBHOOK_SECRET: z.string().optional().or(z.literal("")),
   STRIPE_RETURN_URL: z.string().default("http://localhost:3000/payment/return"),
+  STRIPE_SUCCESS_URL: z
+  .string()
+  .default(
+    "http://localhost:5000/api/v1/payments/checkout/success?session_id={CHECKOUT_SESSION_ID}"
+  ),
+
+STRIPE_CANCEL_URL: z
+  .string()
+  .default(
+    "http://localhost:5000/api/v1/payments/checkout/cancel"
+  ),
   SEED_ADMIN_NAME: z.string().default("Platform Admin"),
   SEED_ADMIN_EMAIL: z.string().email().default("admin@devassess.com"),
   SEED_ADMIN_PASSWORD: z.string().min(8).default("Admin123!"),
@@ -33,13 +49,16 @@ const envSchema = z.object({
   SEED_REVIEWER_PASSWORD: z.string().min(8).default("Reviewer123!"),
   SEED_CANDIDATE_NAME: z.string().default("Demo Candidate"),
   SEED_CANDIDATE_EMAIL: z.string().email().default("candidate@devassess.com"),
-  SEED_CANDIDATE_PASSWORD: z.string().min(8).default("Candidate123!")
+  SEED_CANDIDATE_PASSWORD: z.string().min(8).default("Candidate123!"),
 });
 
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error("Invalid environment configuration:", parsed.error.flatten().fieldErrors);
+  console.error(
+    "Invalid environment configuration:",
+    parsed.error.flatten().fieldErrors,
+  );
   throw new Error("Invalid environment configuration");
 }
 

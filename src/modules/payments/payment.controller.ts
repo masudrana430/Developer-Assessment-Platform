@@ -1,3 +1,5 @@
+import { getStripe } from "../../lib/stripe";
+import { AppError } from "../../utils/AppError";
 import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
 import * as PaymentService from "./payment.service";
@@ -37,3 +39,75 @@ export const webhook = catchAsync(async (req, res) => {
   );
   sendResponse(res, 200, "Webhook processed successfully", result);
 });
+
+export const createCheckoutSession = catchAsync(
+  async (req, res) => {
+    const result =
+      await PaymentService.createCheckoutSession(
+        req.user!.id,
+        req.params.attemptId
+      );
+
+    sendResponse(
+      res,
+      201,
+      "Checkout session created successfully",
+      result
+    );
+  }
+);
+
+export const checkoutSuccess = catchAsync(
+  async (req, res) => {
+    const sessionId = req.query.session_id;
+
+    if (
+      typeof sessionId !== "string" ||
+      !sessionId
+    ) {
+      throw new AppError(
+        400,
+        "Missing Checkout Session ID"
+      );
+    }
+
+    const stripe = getStripe();
+
+    const session =
+      await stripe.checkout.sessions.retrieve(
+        sessionId
+      );
+
+    res.status(200).send(`
+      <html>
+        <head>
+          <title>Payment Successful</title>
+        </head>
+
+        <body style="font-family: Arial; padding: 40px;">
+          <h1>Payment completed</h1>
+          <p>Stripe Session: ${session.id}</p>
+          <p>Payment status: ${session.payment_status}</p>
+          <p>You can return to Postman now.</p>
+        </body>
+      </html>
+    `);
+  }
+);
+
+export const checkoutCancel = catchAsync(
+  async (_req, res) => {
+    res.status(200).send(`
+      <html>
+        <head>
+          <title>Payment Cancelled</title>
+        </head>
+
+        <body style="font-family: Arial; padding: 40px;">
+          <h1>Payment cancelled</h1>
+          <p>No payment was completed.</p>
+        </body>
+      </html>
+    `);
+  }
+);

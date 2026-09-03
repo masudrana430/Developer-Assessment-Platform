@@ -60,25 +60,25 @@ enum ReviewDecision {
 }
 
 model User {
-  id          String      @id @default(uuid())
-  name        String
-  email       String      @unique
-  password    String?
-  googleId    String?     @unique
-  role        Role        @default(CANDIDATE)
-  status      UserStatus  @default(ACTIVE)
-  avatarUrl   String?
+  id           String     @id @default(uuid())
+  name         String
+  email        String     @unique
+  password     String?
+  googleId     String?    @unique
+  role         Role       @default(CANDIDATE)
+  status       UserStatus @default(ACTIVE)
+  avatarUrl    String?
   tokenVersion Int        @default(0)
-  deletedAt   DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  deletedAt    DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   authoredAssessments Assessment[] @relation("AssessmentAuthor")
   candidateAttempts   Attempt[]    @relation("CandidateAttempts")
   reviewerAttempts    Attempt[]    @relation("ReviewerAttempts")
   reviews             Review[]
   payments            Payment[]
-  auditLogs            AuditLog[]  @relation("AuditActor")
+  auditLogs           AuditLog[]   @relation("AuditActor")
 
   @@index([role, status, deletedAt])
   @@index([createdAt])
@@ -179,16 +179,17 @@ model Answer {
 }
 
 model Payment {
-  id                    String        @id @default(uuid())
-  attemptId             String        @unique
-  userId                String
-  stripePaymentIntentId String?       @unique
-  amountCents           Int
-  currency              String
-  status                PaymentStatus @default(PENDING)
-  failureReason         String?
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
+  id                      String        @id @default(uuid())
+  attemptId               String        @unique
+  userId                  String
+  stripePaymentIntentId   String?       @unique
+  stripeCheckoutSessionId String?       @unique
+  amountCents             Int
+  currency                String
+  status                  PaymentStatus @default(PENDING)
+  failureReason           String?
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
 
   attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
   user    User    @relation(fields: [userId], references: [id], onDelete: Restrict)
