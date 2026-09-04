@@ -135,6 +135,19 @@ Health check:
 GET http://localhost:5000/health
 ```
 
+## API Documentation
+
+Interactive Swagger UI is available at:
+
+- Local: `http://localhost:5000/api-docs`
+- Production: `https://developer-assessment-platform.onrender.com/api-docs`
+
+The raw OpenAPI JSON document is available at:
+
+`https://developer-assessment-platform.onrender.com/api-docs.json`
+
+Swagger UI supports bearer-token authorization and keeps the entered token while the page is open.
+
 ## Postman Testing
 
 Import:

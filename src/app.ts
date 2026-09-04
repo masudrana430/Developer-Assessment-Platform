@@ -1,14 +1,14 @@
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import swaggerUi from "swagger-ui-express";
 import { config } from "./config";
+import swaggerSpec from "./config/swagger";
 import { globalErrorHandler } from "./middleware/globalErrorHandler";
 import { notFound } from "./middleware/notFound";
 import { apiLimiter } from "./middleware/rateLimiter";
 import { webhook as stripeWebhook } from "./modules/payments/payment.controller";
 import { apiRouter } from "./routes";
-import swaggerUi from "swagger-ui-express";
-import swaggerSpec from "./config/swagger";
 
 export const app = express();
 
