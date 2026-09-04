@@ -7,6 +7,8 @@ import { notFound } from "./middleware/notFound";
 import { apiLimiter } from "./middleware/rateLimiter";
 import { webhook as stripeWebhook } from "./modules/payments/payment.controller";
 import { apiRouter } from "./routes";
+import swaggerUi from "swagger-ui-express";
+import swaggerSpec from "./config/swagger";
 
 export const app = express();
 
@@ -47,6 +49,21 @@ app.get("/health", (_req, res) => {
     message: "API is healthy",
     data: { uptime: process.uptime() },
   });
+});
+
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    explorer: true,
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  }),
+);
+
+app.get("/api-docs.json", (_req, res) => {
+  res.status(200).json(swaggerSpec);
 });
 
 app.use("/api/v1", apiRouter);
